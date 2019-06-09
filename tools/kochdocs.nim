@@ -1,13 +1,13 @@
 ## Part of 'koch' responsible for the documentation generation.
 
-import os, strutils, osproc
+import os, strutils, osproc, tables, strformat
 
 const
   gaCode* = " --doc.googleAnalytics:UA-48159761-1"
 
   nimArgs = "--hint[Conf]:off --hint[Path]:off --hint[Processing]:off -d:boot --putenv:nimversion=$#" % system.NimVersion
   gitUrl = "https://github.com/nim-lang/Nim"
-  docHtmlOutput = "doc/html"
+  docHtmlOutput = "$1/html"
   webUploadOutput = "web/upload"
   docHackDir = "tools/dochack"
 
@@ -80,45 +80,46 @@ proc nimCompileFold*(desc, input: string, outputDir = "bin", mode = "c", options
   execFold(desc, cmd)
 
 const
+  docRootPathMap = { "en-us": "doc", "zh-cn": "doc-zh-cn"}.toTable
   pdf = """
-doc/manual.rst
-doc/lib.rst
-doc/tut1.rst
-doc/tut2.rst
-doc/tut3.rst
-doc/nimc.rst
-doc/niminst.rst
-doc/gc.rst
+$1/manual.rst
+$1/lib.rst
+$1/tut1.rst
+$1/tut2.rst
+$1/tut3.rst
+$1/nimc.rst
+$1/niminst.rst
+$1/gc.rst
 """.splitWhitespace()
 
   rst2html = """
-doc/intern.rst
-doc/apis.rst
-doc/lib.rst
-doc/manual.rst
-doc/manual_experimental.rst
-doc/tut1.rst
-doc/tut2.rst
-doc/tut3.rst
-doc/nimc.rst
-doc/overview.rst
-doc/filters.rst
-doc/tools.rst
-doc/niminst.rst
-doc/nimgrep.rst
-doc/gc.rst
-doc/estp.rst
-doc/idetools.rst
-doc/docgen.rst
-doc/koch.rst
-doc/backends.rst
-doc/nimsuggest.rst
-doc/nep1.rst
-doc/nims.rst
-doc/contributing.rst
-doc/codeowners.rst
-doc/packaging.rst
-doc/manual/var_t_return.rst
+$1/intern.rst
+$1/apis.rst
+$1/lib.rst
+$1/manual.rst
+$1/manual_experimental.rst
+$1/tut1.rst
+$1/tut2.rst
+$1/tut3.rst
+$1/nimc.rst
+$1/overview.rst
+$1/filters.rst
+$1/tools.rst
+$1/niminst.rst
+$1/nimgrep.rst
+$1/gc.rst
+$1/estp.rst
+$1/idetools.rst
+$1/docgen.rst
+$1/koch.rst
+$1/backends.rst
+$1/nimsuggest.rst
+$1/nep1.rst
+$1/nims.rst
+$1/contributing.rst
+$1/codeowners.rst
+$1/packaging.rst
+$1/manual/var_t_return.rst
 """.splitWhitespace()
 
   doc = """
@@ -300,28 +301,32 @@ proc buildDocSamples(nimArgs, destPath: string) =
   exec(findNim() & " doc $# -o:$# $#" %
     [nimArgs, destPath / "docgen_sample.html", "doc" / "docgen_sample.nim"])
 
-proc buildDoc(nimArgs, destPath: string) =
-  # call nim for the documentation:
+proc buildDoc(language, nimArgs, destPath: string) =
+  let docRootPath = docRootPathMap.getOrDefault(language, "doc")
   var
     commands = newSeq[string](rst2html.len + len(doc0) + len(doc) + withoutIndex.len)
     i = 0
   let nim = findNim()
   for d in items(rst2html):
+    let d = d.format(docRootPath)
     commands[i] = nim & " rst2html $# --git.url:$# -o:$# --index:on $#" %
       [nimArgs, gitUrl,
       destPath / changeFileExt(splitFile(d).name, "html"), d]
     i.inc
   for d in items(doc0):
+    let d = d.format([docRootPath])
     commands[i] = nim & " doc0 $# --git.url:$# -o:$# --index:on $#" %
       [nimArgs, gitUrl,
       destPath / changeFileExt(splitFile(d).name, "html"), d]
     i.inc
   for d in items(doc):
+    let d = d.format([docRootPath])
     commands[i] = nim & " doc $# --git.url:$# -o:$# --index:on $#" %
       [nimArgs, gitUrl,
       destPath / changeFileExt(splitFile(d).name, "html"), d]
     i.inc
   for d in items(withoutIndex):
+    let d = d.format([docRootPath])
     commands[i] = nim & " doc2 $# --git.url:$# -o:$# $#" %
       [nimArgs, gitUrl,
       destPath / changeFileExt(splitFile(d).name, "html"), d]
@@ -358,22 +363,24 @@ proc buildJS() =
       [webUploadOutput / "nimblepkglist.js"])
   exec(findNim() & " js " & (docHackDir / "dochack.nim"))
 
-proc buildDocs*(args: string) =
+proc buildDocs*(language, args: string) =
   let
     a = nimArgs & " " & args
     docHackJs = "dochack.js"
+    docRootPath = docRootPathMap.getOrDefault(language, "doc")
+    docLangHtmlOutput = docHtmlOutput.format(docRootPath)
     docHackJsSource = docHackDir / docHackJs
-    docHackJsDest = docHtmlOutput / docHackJs
+    docHackJsDest = docLangHtmlOutput / docHackJs
   buildJS()                     # This call generates docHackJsSource
   let docup = webUploadOutput / NimVersion
   createDir(docup)
   buildDocSamples(a, docup)
-  buildDoc(a, docup)
+  buildDoc(language, a, docup)
 
   # 'nimArgs' instead of 'a' is correct here because we don't want
   # that the offline docs contain the 'gaCode'!
-  createDir(docHtmlOutput)
-  buildDocSamples(nimArgs, docHtmlOutput)
-  buildDoc(nimArgs, docHtmlOutput)
+  createDir(docLangHtmlOutput)
+  buildDocSamples(nimArgs, docLangHtmlOutput)
+  buildDoc(language, nimArgs, docLangHtmlOutput)
   copyFile(docHackJsSource, docHackJsDest)
   copyFile(docHackJsSource, docup / docHackJs)

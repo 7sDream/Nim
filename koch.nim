@@ -62,7 +62,7 @@ Boot options:
 
 Commands for core developers:
   runCI                    runs continuous integration (CI), eg from travis
-  docs [options]           generates the full documentation
+  docs lang [options]      generates the full documentation use chosen language
   csource -d:release       builds the C sources for installation
   pdf                      builds the PDF documentation
   zip                      builds the installation zip package
@@ -384,7 +384,7 @@ proc winRelease*() =
   # Build -docs file:
   when true:
     inFold "winrelease buildDocs":
-      buildDocs(gaCode)
+      buildDocs("en-us", gaCode)
     withDir "web/upload/" & VersionAsString:
       inFold "winrelease zipdocs":
         exec "7z a -tzip docs-$#.zip *.html" % VersionAsString
@@ -586,10 +586,19 @@ when isMainModule:
       case normalize(op.key)
       of "boot": boot(op.cmdLineRest)
       of "clean": clean(op.cmdLineRest)
-      of "doc", "docs": buildDocs(op.cmdLineRest)
+      of "doc", "docs":
+        op.next()
+        case op.kind
+        of cmdArgument:
+          buildDocs(normalize(op.key), op.cmdLineRest)
+        else: showHelp()
       of "doc0", "docs0":
-        # undocumented command for Araq-the-merciful:
-        buildDocs(op.cmdLineRest & gaCode)
+        op.next()
+        case op.kind
+        of cmdArgument:
+          # undocumented command for Araq-the-merciful:
+          buildDocs(normalize(op.key), op.cmdLineRest & gaCode)
+        else: showHelp()
       of "pdf": buildPdfDoc(op.cmdLineRest, "doc/pdf")
       of "csource", "csources": csource(op.cmdLineRest)
       of "zip": zip(latest, op.cmdLineRest)
